@@ -33,14 +33,14 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableModel;
 
+import com.badlogic.gdx.math.MathUtils;
+
 import net.wkbae.lifesimulator.Gene;
 import net.wkbae.lifesimulator.Simulation;
 import net.wkbae.lifesimulator.SimulationListener;
 import net.wkbae.lifesimulator.SimulationPainter;
 import net.wkbae.lifesimulator.SimulationPainter.LifePaintInfo;
 import net.wkbae.lifesimulator.SimulationSetting;
-
-import org.jbox2d.common.MathUtils;
 
 public class LifeformStatisticsDialog extends JDialog implements ActionListener, SimulationListener {
 	private static final long serialVersionUID = 4382549644263744170L;

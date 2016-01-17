@@ -8,28 +8,27 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 
-import net.wkbae.lifesimulator.Simulation.LifeSearchResult;
+import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.physics.box2d.Body;
+import com.badlogic.gdx.physics.box2d.Fixture;
+import com.badlogic.gdx.physics.box2d.QueryCallback;
+import com.badlogic.gdx.physics.box2d.World;
 
-import org.jbox2d.callbacks.QueryCallback;
-import org.jbox2d.collision.AABB;
-import org.jbox2d.common.MathUtils;
-import org.jbox2d.common.Vec2;
-import org.jbox2d.dynamics.Body;
-import org.jbox2d.dynamics.Fixture;
-import org.jbox2d.dynamics.World;
+import net.wkbae.lifesimulator.Simulation.LifeSearchResult;
 
 public class Lifeform {
 	private final static float DEFAULT_PREFERENCE = 1;
 	private final static float DEFAULT_ALIKE_PREFERENCE = 3;
 	private final static float[] ANGLE_PI = {
 		0,
-		MathUtils.QUARTER_PI,
-		MathUtils.HALF_PI,
-		MathUtils.HALF_PI + MathUtils.QUARTER_PI,
+		MathUtils.PI / 4,
+		MathUtils.PI / 2,
+		MathUtils.PI * 3 / 4,
 		MathUtils.PI,
-		MathUtils.PI + MathUtils.QUARTER_PI,
-		MathUtils.PI + MathUtils.HALF_PI,
-		MathUtils.PI + MathUtils.HALF_PI + MathUtils.QUARTER_PI
+		MathUtils.PI * 5 / 4,
+		MathUtils.PI * 3 / 2,
+		MathUtils.PI * 7 / 4
 	};
 	private final static float ROOT2 = 1.4142136f;
 	
@@ -102,7 +101,7 @@ public class Lifeform {
 	private BreedingPair breedingPair;
 	void startBreeding(BreedingPair pair) {
 		breedingPair = pair;
-		body.m_linearVelocity.set(0, 0);
+		body.setLinearVelocity(0, 0);
 		this.breeding = true;
 		this.breedingCooldown = gene.getBreedingCooldown();
 	}
@@ -122,9 +121,9 @@ public class Lifeform {
 		}
 		
 		if(body != null && other.getBody() != null) {
-			Vec2 diff = body.getPosition().sub(other.getBody().getPosition()); // to length 1 & * speed -> impulse
-			diff.normalize();
-			body.applyLinearImpulse(diff.mulLocal(speed), body.getWorldCenter());
+			Vector2 diff = body.getPosition().sub(other.getBody().getPosition()); // to length 1 & * speed -> impulse
+			diff.nor();
+			body.applyLinearImpulse(diff.scl(speed), body.getWorldCenter(), true);
 		}
 		
 		breedingPair = null;
@@ -198,10 +197,9 @@ public class Lifeform {
 		}
 		
 		List<Lifeform> foundLives = new LinkedList<>();
-		Vec2 baseLoc = body.getPosition();
-		Vec2 sightVec = new Vec2(sight, sight).mulLocal(0.5f);
+		Vector2 baseLoc = body.getPosition();
 		synchronized (world) {
-			world.queryAABB(new SightListener(foundLives, baseLoc), new AABB(baseLoc.sub(sightVec), baseLoc.add(sightVec)));
+			world.QueryAABB(new SightListener(foundLives, baseLoc), baseLoc.x - sight / 2f, baseLoc.y - sight / 2f, baseLoc.x + sight / 2f, baseLoc.y + sight / 2f);
 		}
 		
 		//List<Float> angles = new ArrayList<>(foundLives.size());
@@ -212,14 +210,14 @@ public class Lifeform {
 		
 		int i = 0;
 		for(Lifeform life : foundLives) {
-			Vec2 relLoc;
+			Vector2 relLoc;
 			//synchronized (life) {
 				if(life.getBody() == null) continue;
 				relLoc = life.getBody().getPosition().sub(baseLoc);
 			//}
 			float angl = MathUtils.atan2(relLoc.y, relLoc.x);
 			
-			float dist = relLoc.length();
+			float dist = relLoc.len();
 			float pref = getPreference(life.getColor()) * ((energy / maxEnergy <= 0.1)? 5 : 1);
 			float ranged = PROBABILITY_CONSTANT * pref / (dist * dist); // 선호도에 비례, 거리의 제곱에 반비례
 			
@@ -335,7 +333,7 @@ public class Lifeform {
 						angle2 = 7;
 					} else { // ANGLE_PI[7] < angle < ANGLE_PI[8](=PI*2)
 						diff1 = angle - ANGLE_PI[7];
-						diff2 = MathUtils.TWOPI - angle;
+						diff2 = MathUtils.PI2 - angle;
 						angle1 = 7;
 						angle2 = 0;
 					}
@@ -350,40 +348,40 @@ public class Lifeform {
 		
 		// 각각 방향의 선호도 수치를 지수로  사용(음수 선호도)
 		for(int i = 0; i <= 7; i++) {
-			direction[i] = EXPONENTIAL_CONSTANT * MathUtils.fastPow(EXPONENTIAL_BASE, direction[i]);//MathUtils.fastPow(2, direction[i]);
+			direction[i] = EXPONENTIAL_CONSTANT * fastPow(EXPONENTIAL_BASE, direction[i]);//MathUtils.fastPow(2, direction[i]);
 		}
 		
 		// 룰렛 방식 - 전체를 1로 보고 4가지 경우의 확률을 각각 0.2, 0.4, 0.3, 0.1 로 정한 뒤 0~1 사이의 수를 무작위로 선택, 0.2보다 작으면 1, 0.6(누적)보다 작으면 2, 0.9보다 작으면 3, ..
 		float prob = randomProb * (direction[0] + direction[1] + direction[2] + direction[3] + direction[4] + direction[5] + direction[6] + direction[7]);
 		
-		Vec2 impulse = new Vec2();
+		Vector2 impulse = new Vector2();
 		probLoop:
 		for(int i = 0; i <= 7; i++) {
 			if(prob <= direction[i]) {
 				switch(i) {
 				case 0:
-					impulse.addLocal(speed, 0); // 동
+					impulse.add(speed, 0); // 동
 					break probLoop;
 				case 1:
-					impulse.addLocal(speedDivRoot2, speedDivRoot2); // 남동
+					impulse.add(speedDivRoot2, speedDivRoot2); // 남동
 					break probLoop;
 				case 2:
-					impulse.addLocal(0, speed); // 남
+					impulse.add(0, speed); // 남
 					break probLoop;
 				case 3:
-					impulse.addLocal(-speedDivRoot2, speedDivRoot2); // 남서
+					impulse.add(-speedDivRoot2, speedDivRoot2); // 남서
 					break probLoop;
 				case 4:
-					impulse.addLocal(-speed, 0); // 서
+					impulse.add(-speed, 0); // 서
 					break probLoop;
 				case 5:
-					impulse.addLocal(-speedDivRoot2, -speedDivRoot2); // 북서
+					impulse.add(-speedDivRoot2, -speedDivRoot2); // 북서
 					break probLoop;
 				case 6:
-					impulse.addLocal(0, -speed); // 북
+					impulse.add(0, -speed); // 북
 					break probLoop;
 				case 7:
-					impulse.addLocal(speedDivRoot2, -speedDivRoot2); // 북동
+					impulse.add(speedDivRoot2, -speedDivRoot2); // 북동
 					break probLoop;
 				}
 			} else {
@@ -391,7 +389,7 @@ public class Lifeform {
 			}
 		}
 		
-		body.applyLinearImpulse(impulse, body.getWorldCenter());
+		body.applyLinearImpulse(impulse, body.getWorldCenter(), true);
 	}
 	
 	private final static float DISKILE_CONSTANT = 2.0f;
@@ -522,9 +520,9 @@ public class Lifeform {
 	
 	private class SightListener implements QueryCallback {
 		private List<Lifeform> found;
-		private Vec2 baseLoc;
+		private Vector2 baseLoc;
 		
-		SightListener(List<Lifeform> found, Vec2 baseLoc) {
+		SightListener(List<Lifeform> found, Vector2 baseLoc) {
 			this.found = found;
 			this.baseLoc = baseLoc;
 		}
@@ -539,7 +537,7 @@ public class Lifeform {
 				return true;
 			}
 			//System.out.println("found");
-			float dist = MathUtils.distance(fixture.getBody().getPosition(), baseLoc);
+			float dist = baseLoc.dst(fixture.getBody().getPosition());
 			dist -= other.getSize();
 			if(dist <= sight) {
 				found.add(other);
@@ -550,5 +548,19 @@ public class Lifeform {
 	
 	public static interface LifeformEnergyListener {
 		public void onEnergyChanged(Lifeform life, float energy);
+	}
+	
+	private static final float SHIFT23 = 1 << 23;
+	private static final float INV_SHIFT23 = 1.0f / SHIFT23;
+	
+	public static final float fastPow(float a, float b) {
+		float x = Float.floatToRawIntBits(a);
+		x *= INV_SHIFT23;
+		x -= 127;
+		float y = x - (x >= 0 ? (int) x : (int) x - 1);
+		b *= x + (y - y * y) * 0.346607f;
+		y = b - (b >= 0 ? (int) b : (int) b - 1);
+		y = (y - y * y) * 0.33971f;
+		return Float.intBitsToFloat((int) ((b + 127 - y) * SHIFT23));
 	}
 }

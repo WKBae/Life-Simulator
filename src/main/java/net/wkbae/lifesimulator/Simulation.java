@@ -17,21 +17,23 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.jbox2d.callbacks.ContactImpulse;
-import org.jbox2d.callbacks.ContactListener;
-import org.jbox2d.collision.Manifold;
-import org.jbox2d.collision.shapes.CircleShape;
-import org.jbox2d.collision.shapes.PolygonShape;
-import org.jbox2d.common.MathUtils;
-import org.jbox2d.common.Vec2;
-import org.jbox2d.dynamics.Body;
-import org.jbox2d.dynamics.BodyDef;
-import org.jbox2d.dynamics.BodyType;
-import org.jbox2d.dynamics.Fixture;
-import org.jbox2d.dynamics.FixtureDef;
-import org.jbox2d.dynamics.World;
-import org.jbox2d.dynamics.contacts.Contact;
 import org.slf4j.LoggerFactory;
+
+import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.physics.box2d.Body;
+import com.badlogic.gdx.physics.box2d.BodyDef;
+import com.badlogic.gdx.physics.box2d.BodyDef.BodyType;
+import com.badlogic.gdx.physics.box2d.CircleShape;
+import com.badlogic.gdx.physics.box2d.Contact;
+import com.badlogic.gdx.physics.box2d.ContactImpulse;
+import com.badlogic.gdx.physics.box2d.ContactListener;
+import com.badlogic.gdx.physics.box2d.Fixture;
+import com.badlogic.gdx.physics.box2d.FixtureDef;
+import com.badlogic.gdx.physics.box2d.Manifold;
+import com.badlogic.gdx.physics.box2d.PolygonShape;
+import com.badlogic.gdx.physics.box2d.World;
+import com.badlogic.gdx.utils.Array;
 
 import net.wkbae.lifesimulator.Gene.Factor;
 
@@ -67,8 +69,7 @@ public class Simulation implements Runnable, ContactListener {
 		
 		worldSizeReverse = 1.0f / setting.getWorldSize();
 		
-		world = new World(new Vec2(0.0f, 0.0f));
-		world.setAllowSleep(true);
+		world = new World(new Vector2(0.0f, 0.0f), true);
 		world.setContactListener(this);
 		
 		createWall();
@@ -245,7 +246,7 @@ public class Simulation implements Runnable, ContactListener {
 	
 	private void createWall() {
 		BodyDef bdef = new BodyDef();
-		bdef.type = BodyType.STATIC;
+		bdef.type = BodyType.StaticBody;
 		
 		final float halfWorld = setting.getWorldSize() / 2;
 		
@@ -285,7 +286,7 @@ public class Simulation implements Runnable, ContactListener {
 	private void initLives() {
 		lifeforms[0] = new ArrayList<>();
 		for(int i = 0; i < setting.getLifeformAmount(); i++) {
-			Vec2 loc = new Vec2(random.nextInt(setting.getWorldSize()), random.nextInt(setting.getWorldSize()));
+			Vector2 loc = new Vector2(random.nextInt(setting.getWorldSize()), random.nextInt(setting.getWorldSize()));
 			lifeforms[0].add(createLifeform(Gene.random(random), loc, new HashMap<Integer, Float>()));
 		}
 	}
@@ -335,7 +336,7 @@ public class Simulation implements Runnable, ContactListener {
 					Body twoBody = pair.two.getBody();
 					lifeforms[loop].add(createLifeform(
 											Gene.crossover(random, pair.one.gene, pair.two.gene, setting.getMutationRatio()),
-											oneBody.getPosition().add(twoBody.getPosition()).mulLocal(0.5f),// mean value
+											oneBody.getPosition().add(twoBody.getPosition()).scl(0.5f),// mean value
 											pair.one.preference, pair.two.preference)
 										);
 					pair.endBreeding(true);
@@ -558,10 +559,13 @@ public class Simulation implements Runnable, ContactListener {
 	private void updatePainter0() {
 		try {
 			List<SimulationPainter.LifePaintInfo> paintInfo = new ArrayList<>();
-			for(Body body = world.getBodyList(); body != null; body = body.getNext()) {
-				Fixture fixt = body.getFixtureList();
-				if(fixt.getUserData() instanceof Lifeform) {
-					paintInfo.add(new SimulationPainter.LifePaintInfo((Lifeform)fixt.getUserData()));
+			Array<Body> bodies = new Array<>();
+			world.getBodies(bodies);
+			while(bodies.size > 0) {
+				Body body = bodies.pop();
+				Array<Fixture> fixt = body.getFixtureList();
+				if(fixt.first().getUserData() instanceof Lifeform) {
+					paintInfo.add(new SimulationPainter.LifePaintInfo((Lifeform)fixt.first().getUserData()));
 				}
 			}
 			
@@ -602,7 +606,7 @@ public class Simulation implements Runnable, ContactListener {
 	}
 	
 	//private long lastPaint;
-	private Lifeform createLifeform(Gene gene, Vec2 loc, Map<Integer, Float> parentPref1, Map<Integer, Float> parentPref2) {
+	private Lifeform createLifeform(Gene gene, Vector2 loc, Map<Integer, Float> parentPref1, Map<Integer, Float> parentPref2) {
 		HashMap<Integer, Float> preference = new HashMap<>((parentPref1.size() + parentPref2.size()) / 2);
 		for(Entry<Integer, Float> entry : parentPref1.entrySet()) {
 			preference.put(entry.getKey(), (entry.getValue() - 1) / 2 + 1);
@@ -618,36 +622,37 @@ public class Simulation implements Runnable, ContactListener {
 		return createLifeform(gene, loc, preference);
 	}	
 	
-	private Lifeform createLifeform(Gene gene, Vec2 loc, Map<Integer, Float> preference) {
+	private Lifeform createLifeform(Gene gene, Vector2 loc, Map<Integer, Float> preference) {
 		
 		Lifeform life = new Lifeform(gene, preference);
 		
 		BodyDef bdef = new BodyDef();
-		bdef.type = BodyType.DYNAMIC;
+		bdef.type = BodyType.DynamicBody;
 		bdef.bullet = true;
 		bdef.position.set(loc);
 		bdef.fixedRotation = true;
 		bdef.linearDamping = setting.getDamping();
 		
 		CircleShape shape = new CircleShape();
-		shape.m_radius = life.getSize(); //gene.getFactor(Factor.SIZE) / 10.0f;
+		shape.setRadius(life.getSize()); //gene.getFactor(Factor.SIZE) / 10.0f;
 		FixtureDef fdef = new FixtureDef();
 		fdef.shape = shape;
 		//fdef.density = gene.getFactor(Factor.MASS) / (shape.m_radius * shape.m_radius * MathUtils.PI);
 		fdef.restitution = gene.getFactor(Factor.BOUNCY) / 50.0f;
-		fdef.userData = life;
 		
 		synchronized (world) {
 			Body body = world.createBody(bdef);
 			
-			life.setFixture(body.createFixture(fdef));
+			Fixture fix = body.createFixture(fdef);
+			fix.setUserData(life);
+			life.setFixture(fix);
 		}
 		return life;
 	}
 	
 	private List<LifeformCreationData> lifeformAddQueue = new ArrayList<>();
 	
-	public void addLifeform(Gene gene, Vec2 location, Map<Integer, Float> preferences) {
+	public void addLifeform(Gene gene, Vector2 location, Map<Integer, Float> preferences) {
 		synchronized (lifeformAddQueue) {
 			lifeformAddQueue.add(new LifeformCreationData(gene, location, preferences));
 		}
@@ -674,7 +679,7 @@ public class Simulation implements Runnable, ContactListener {
 			Lifeform lifeB = (Lifeform) b.getUserData();
 			if(lifeA.isCloseTo(lifeB) && lifeA.canBreed() && lifeB.canBreed()) {
 				addBreedingQue(lifeA, lifeB);
-				contact.getManifold().pointCount = 0;
+				contact.setEnabled(false);//getManifold().pointCount = 0;
 			}
 		}
 	}
@@ -691,10 +696,10 @@ public class Simulation implements Runnable, ContactListener {
 			if(!lifeA.isCloseTo(lifeB)) {
 				int forceA = lifeA.gene.getFactor(Factor.POWER);
 				int forceB = lifeB.gene.getFactor(Factor.POWER);
-				float impul = impulse.normalImpulses[0] / 10;
+				float impul = impulse.getNormalImpulses()[0] / 10;
 				
-				float powerA = impul * forceA / 3.0f * a.getBody().getLinearVelocity().length();
-				float powerB = impul * forceB / 3.0f * b.getBody().getLinearVelocity().length();
+				float powerA = impul * forceA / 3.0f * a.getBody().getLinearVelocity().len();
+				float powerB = impul * forceB / 3.0f * b.getBody().getLinearVelocity().len();
 				
 				
 				if(powerA > powerB) {

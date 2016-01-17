@@ -6,8 +6,7 @@ import java.awt.RenderingHints;
 import java.util.Collections;
 import java.util.List;
 
-import org.jbox2d.common.MathUtils;
-import org.jbox2d.common.Vec2;
+import com.badlogic.gdx.math.Vector2;
 
 public class SimulationPainter { //implements Comparable<SimulationPainter> { // no, SimulationPainter.simulation can be different.
 	private final Simulation simulation;
@@ -50,9 +49,9 @@ public class SimulationPainter { //implements Comparable<SimulationPainter> { //
 			Vec2 loc = info.loc.mul(multiplyer);*/
 			
 			float rad = info.size * multiplyer;
-			int x = MathUtils.round(locx - rad) + startX;
-			int y = MathUtils.round(locy - rad) + startY;
-			int s = MathUtils.round(rad*2);
+			int x = (int)((locx - rad) + 0.5f) + startX;
+			int y = (int)((locy - rad) + 0.5f) + startY;
+			int s = (int)(rad*2 + 0.5f);
 			
 			int re = (info.color >> 8) & 0xF;
 			int gr = (info.color >> 4) & 0xF;
@@ -85,7 +84,7 @@ public class SimulationPainter { //implements Comparable<SimulationPainter> { //
 		public final float x, y;
 		
 		LifePaintInfo(Lifeform life) {
-			Vec2 loc = life.getBody().getPosition();
+			Vector2 loc = life.getBody().getPosition();
 			this.x = loc.x;
 			this.y = loc.y;
 			

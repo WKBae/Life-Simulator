@@ -1,8 +1,8 @@
 package net.wkbae.lifesimulator;
 
-import org.jbox2d.dynamics.World;
-import org.jbox2d.dynamics.joints.DistanceJointDef;
-import org.jbox2d.dynamics.joints.Joint;
+import com.badlogic.gdx.physics.box2d.Joint;
+import com.badlogic.gdx.physics.box2d.World;
+import com.badlogic.gdx.physics.box2d.joints.DistanceJointDef;
 
 class BreedingPair {
 	//private final static int BREEDING_TICKS = 20;

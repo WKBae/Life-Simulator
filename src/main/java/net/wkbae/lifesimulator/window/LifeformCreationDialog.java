@@ -1,32 +1,30 @@
 package net.wkbae.lifesimulator.window;
 
-import javax.swing.JButton;
-import javax.swing.JDialog;
-import javax.swing.JSpinner;
-import javax.swing.SpinnerNumberModel;
-import javax.swing.SwingConstants;
-
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.GridBagLayout;
-import java.awt.RenderingHints;
-
-import javax.swing.JSlider;
 import java.awt.GridBagConstraints;
-import javax.swing.JPanel;
+import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.RenderingHints;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
+import javax.swing.JButton;
+import javax.swing.JDialog;
 import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JSlider;
+import javax.swing.JSpinner;
+import javax.swing.SpinnerNumberModel;
+import javax.swing.SwingConstants;
 import javax.swing.border.TitledBorder;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 
-import org.jbox2d.common.MathUtils;
-import org.jbox2d.common.Vec2;
+import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.math.Vector2;
 
 import net.wkbae.lifesimulator.Gene;
 import net.wkbae.lifesimulator.Simulation;
@@ -357,7 +355,7 @@ public class LifeformCreationDialog extends JDialog implements ChangeListener, A
 	public void actionPerformed(ActionEvent e) {
 		if("Create".equalsIgnoreCase(e.getActionCommand())) {
 			for(int i = 0; i < (Integer) cntSpinner.getValue(); i++) {
-				sim.addLifeform(gene, new Vec2(x, y), null); // TODO to setting.addLifeform
+				sim.addLifeform(gene, new Vector2(x, y), null); // TODO to setting.addLifeform
 			}
 			this.setVisible(false);
 			this.dispose();

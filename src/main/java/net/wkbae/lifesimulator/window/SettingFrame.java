@@ -35,15 +35,16 @@ import javax.swing.SwingWorker;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 
+import org.apache.commons.codec.binary.Base64;
+
+import com.badlogic.gdx.math.Vector2;
+
 import net.wkbae.lifesimulator.Gene;
 import net.wkbae.lifesimulator.Simulation;
 import net.wkbae.lifesimulator.SimulationListener;
 import net.wkbae.lifesimulator.SimulationPainter;
 import net.wkbae.lifesimulator.SimulationRecorder;
 import net.wkbae.lifesimulator.SimulationSetting;
-
-import org.apache.commons.codec.binary.Base64;
-import org.jbox2d.common.Vec2;
 
 public class SettingFrame extends JDialog implements ActionListener, ChangeListener, SimulationListener {
 	private static final long serialVersionUID = 1432445203635177426L;
@@ -795,7 +796,7 @@ public class SettingFrame extends JDialog implements ActionListener, ChangeListe
 		}
 	}
 	
-	public void addLifeform(Gene gene, Vec2 loc) {
+	public void addLifeform(Gene gene, Vector2 loc) {
 		//// TODO Current Simulation?
 	}
 	

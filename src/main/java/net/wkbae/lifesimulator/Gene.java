@@ -1,12 +1,23 @@
 package net.wkbae.lifesimulator;
 
+import static net.wkbae.lifesimulator.Gene.Factor.BOUNCY;
+import static net.wkbae.lifesimulator.Gene.Factor.BREED_FREQUENCY;
+import static net.wkbae.lifesimulator.Gene.Factor.BREED_SPEED;
+import static net.wkbae.lifesimulator.Gene.Factor.COLOR;
+import static net.wkbae.lifesimulator.Gene.Factor.ENERGY;
+import static net.wkbae.lifesimulator.Gene.Factor.LIFESPAN;
+import static net.wkbae.lifesimulator.Gene.Factor.METABOLISM;
+import static net.wkbae.lifesimulator.Gene.Factor.MOVE_FREQUENCY;
+import static net.wkbae.lifesimulator.Gene.Factor.POWER;
+import static net.wkbae.lifesimulator.Gene.Factor.SIGHT;
+import static net.wkbae.lifesimulator.Gene.Factor.SIZE;
+import static net.wkbae.lifesimulator.Gene.Factor.SPEED;
+
 import java.io.Serializable;
 import java.util.EnumMap;
 import java.util.Random;
 
-import org.jbox2d.common.MathUtils;
-
-import static net.wkbae.lifesimulator.Gene.Factor.*;
+import com.badlogic.gdx.math.MathUtils;
 
 public class Gene implements Serializable {
 	private static final long serialVersionUID = -114320637006733605L;
@@ -232,10 +243,10 @@ public class Gene implements Serializable {
 			// (r - nR)^2 + (g - nG)^2 + (b - nB)^2 < CLOSE_THRESHOLD
 			float newR = (rand.nextFloat() * CLOSE_SINGLE_RADIUS * 2 - CLOSE_SINGLE_RADIUS) + nR;
 			
-			float newRadius = MathUtils.sqrt(CLOSE_THRESHOLD - newR * newR);
+			float newRadius = (float) Math.sqrt(CLOSE_THRESHOLD - newR * newR);
 			float newG = (rand.nextFloat() * newRadius * 2 - newRadius) + nG;
 			
-			newRadius = MathUtils.sqrt(newRadius - newG * newG);
+			newRadius = (float) Math.sqrt(newRadius - newG * newG);
 			float newB = (rand.nextFloat() * newRadius * 2 - newRadius) + nB;
 			
 			nR = (int) newR;

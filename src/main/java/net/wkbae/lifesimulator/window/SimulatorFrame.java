@@ -23,16 +23,15 @@ import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
 
+import org.slf4j.LoggerFactory;
+
+import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.physics.box2d.Fixture;
+import com.badlogic.gdx.physics.box2d.QueryCallback;
+
 import net.wkbae.lifesimulator.Lifeform;
 import net.wkbae.lifesimulator.Simulation;
 import net.wkbae.lifesimulator.SimulationPainter;
-
-import org.jbox2d.callbacks.QueryCallback;
-import org.jbox2d.collision.AABB;
-import org.jbox2d.common.MathUtils;
-import org.jbox2d.common.Vec2;
-import org.jbox2d.dynamics.Fixture;
-import org.slf4j.LoggerFactory;
 
 public class SimulatorFrame extends Frame implements WindowListener {
 	private static final long serialVersionUID = -682403930435583320L;
@@ -131,7 +130,7 @@ public class SimulatorFrame extends Frame implements WindowListener {
 					if(sim != null) {
 						float x = e.getX() / sim.getSetting().getDisplayRatio();
 						float y = e.getY() / sim.getSetting().getDisplayRatio();
-						sim.world.queryAABB(new QueryCallback() {
+						sim.world.QueryAABB(new QueryCallback() {
 							@Override
 							public boolean reportFixture(Fixture fix) {
 								if(fix.getUserData() instanceof Lifeform) {
@@ -147,7 +146,7 @@ public class SimulatorFrame extends Frame implements WindowListener {
 									return true;
 								}
 							}
-						}, new AABB(new Vec2(x - 0.25f, y - 0.25f), new Vec2(x + 0.25f, y + 0.25f)));
+						}, x - 0.25f, y - 0.25f, x + 0.25f, y + 0.25f);
 						
 					}
 				} else if(e.getButton() == MouseEvent.BUTTON3) { // right click

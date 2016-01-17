@@ -1,34 +1,32 @@
 package net.wkbae.lifesimulator.window;
 
-import javax.swing.BorderFactory;
-import javax.swing.JComponent;
-import javax.swing.JDialog;
-import javax.swing.JScrollPane;
-
-import net.wkbae.lifesimulator.Gene.Factor;
-import net.wkbae.lifesimulator.Lifeform.LifeformEnergyListener;
-import net.wkbae.lifesimulator.Lifeform;
-
-import java.awt.GridBagLayout;
-import javax.swing.JPanel;
-
-import org.jbox2d.common.MathUtils;
-
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.RenderingHints;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.Map.Entry;
+import java.util.TreeMap;
 
+import javax.swing.BorderFactory;
+import javax.swing.JComponent;
+import javax.swing.JDialog;
 import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+
+import com.badlogic.gdx.math.MathUtils;
+
+import net.wkbae.lifesimulator.Gene.Factor;
+import net.wkbae.lifesimulator.Lifeform;
+import net.wkbae.lifesimulator.Lifeform.LifeformEnergyListener;
 
 public class LifeformInfoDialog extends JDialog implements LifeformEnergyListener {
 	private static final long serialVersionUID = -3231470103894470945L;
