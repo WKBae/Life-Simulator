@@ -4,8 +4,6 @@ import java.awt.Color;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.GraphicsConfiguration;
-import java.awt.GraphicsEnvironment;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -23,6 +21,14 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.jogamp.opengl.DefaultGLCapabilitiesChooser;
+import com.jogamp.opengl.GL;
+import com.jogamp.opengl.GL2;
+import com.jogamp.opengl.GLAutoDrawable;
+import com.jogamp.opengl.GLCapabilities;
+import com.jogamp.opengl.GLDrawableFactory;
+import com.jogamp.opengl.GLProfile;
+import com.jogamp.opengl.util.awt.AWTGLReadBufferUtil;
 import com.xuggle.mediatool.IMediaWriter;
 import com.xuggle.mediatool.ToolFactory;
 import com.xuggle.xuggler.Global;
@@ -34,8 +40,6 @@ public class SimulationRecorder extends Thread {
 	//private final static long FRAME_RATE = Global.DEFAULT_TIME_UNIT.convert(Math.round(1000000.0 / FRAMES_PER_SECOND), TimeUnit.MICROSECONDS);
 
 	private final static int QUEUE_LIMIT = 600;
-	
-	private final static GraphicsConfiguration graphicConfig = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration();
 	
 	private static Set<Simulation> recordingSimulations = new HashSet<>();
 	public static boolean isRecording(Simulation sim) {
@@ -126,20 +130,50 @@ public class SimulationRecorder extends Thread {
 	@Override
 	public void run() {
 		try {
+			GLProfile glp = GLProfile.getDefault();
+			GLCapabilities caps = new GLCapabilities(glp);
+			caps.setHardwareAccelerated(true);
+			caps.setDoubleBuffered(false);
+			caps.setOnscreen(false);
+			caps.setSampleBuffers(true);
+			caps.setNumSamples(8);
+			
+			GLDrawableFactory factory = GLDrawableFactory.getFactory(glp);
+			GLAutoDrawable drawable = factory.createOffscreenAutoDrawable(factory.getDefaultDevice(), caps, new DefaultGLCapabilitiesChooser(), size, size);
+			AWTGLReadBufferUtil bufferReader = new AWTGLReadBufferUtil(drawable.getGLProfile(), true);
+			
+			drawable.display();
+			System.out.println(drawable + " CTX: " + drawable.getContext());
+			drawable.getContext().makeCurrent();
+			GL2 gl = drawable.getGL().getGL2();
+			gl.glEnable(GL2.GL_MULTISAMPLE);
+			
+			gl.glMatrixMode(GL2.GL_PROJECTION);
+			gl.glLoadIdentity();
+			gl.glOrtho(0, size, size, 0, -1, 1);
+			
+			gl.glMatrixMode(GL2.GL_MODELVIEW);
+			gl.glLoadIdentity();
+			gl.glViewport(0, 0, size, size);
+			drawable.getContext().release();
+			
 			while(!stop) {
 				SimulationPainter painter = paintQueue.take();
 				
 				BufferedImage frame = new BufferedImage(size, height, BufferedImage.TYPE_3BYTE_BGR);
 				
-				BufferedImage compat = graphicConfig.createCompatibleImage(size, size);
-				Graphics2D g = compat.createGraphics();	
+				drawable.getContext().makeCurrent();
+				gl = drawable.getGL().getGL2();
+				gl.glColor3f(1, 1, 1);
+				gl.glRectf(0, 0, size, size);
 				
-				painter.paint(g, size);
+				gl.glClear(GL.GL_COLOR_BUFFER_BIT);
+				gl.glLoadIdentity();
+				painter.paint(gl, 0, 0, size, size);
 				
-				g.dispose();
-				
-				g = frame.createGraphics();
-				g.drawImage(compat, 0, 0, null);
+				Graphics2D g = frame.createGraphics();
+				g.drawImage(bufferReader.readPixelsToBufferedImage(gl, false), 0, 0, null);
+				drawable.getContext().release();
 				
 				g.setColor(Color.BLACK);
 				g.fillRect(0, size, size, height - size);
