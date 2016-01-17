@@ -9,6 +9,8 @@ import java.util.List;
 import org.jbox2d.common.MathUtils;
 import org.jbox2d.common.Vec2;
 
+import com.jogamp.opengl.GL2;
+
 public class SimulationPainter { //implements Comparable<SimulationPainter> { // no, SimulationPainter.simulation can be different.
 	private final Simulation simulation;
 	
@@ -63,6 +65,60 @@ public class SimulationPainter { //implements Comparable<SimulationPainter> { //
 			g.fillOval(x, y, s, s);
 			g.setColor(Color.BLACK);
 			g.drawOval(x, y, s, s);
+		}
+	}
+	
+	private final static int GL_CIRCLE_DIVISION = 12;
+	public void paint(GL2 gl, float startX, float startY, float endX, float endY) {
+		float width = Math.abs(endX - startX), height = Math.abs(endY - startY);
+		float size = Math.min(width, height);
+		float squareStartX = (width - size) / 2;
+		float squareStartY = (height - size) / 2;
+		float directionX = endX > startX? 1 : -1;
+		float directionY = endY > startY? 1 : -1;
+		
+		float multiplyer = size * this.simulation.worldSizeReverse;
+		
+		gl.glColor3f(1, 1, 1);
+		gl.glRectf(squareStartX, squareStartY, squareStartX + (size * directionX), squareStartY + (size * directionY));
+		
+		for(LifePaintInfo info : infos) {
+			float locx = info.x * multiplyer;
+			float locy = info.y * multiplyer;
+
+			float rad = info.size * multiplyer;
+			float x = squareStartX + locx * directionX;
+			float y = squareStartY + locy * directionY;
+			//float s = rad * 2;
+
+			byte red = (byte)((info.color >> 8) & 0xF);
+			byte green = (byte)((info.color >> 4) & 0xF);
+			byte blue = (byte)(info.color & 0xF);
+			red |= red << 4;
+			green |= green << 4;
+			blue |= blue << 4;
+			
+			gl.glPushMatrix();
+			
+			gl.glTranslatef(x, y, 0);
+			gl.glColor3ub(red, green, blue);
+			
+			gl.glBegin(GL2.GL_POLYGON);
+			for(double i = 0; i <= 2 * Math.PI; i += Math.PI / GL_CIRCLE_DIVISION) {
+				gl.glVertex2d(Math.cos(i) * rad, Math.sin(i) * rad);
+			}
+			gl.glEnd();
+			
+			gl.glColor3f(0, 0, 0);
+			
+			gl.glLineWidth(0.8f);
+			gl.glBegin(GL2.GL_LINE_LOOP);
+			for(double i = 0; i <= 2 * Math.PI; i += Math.PI / GL_CIRCLE_DIVISION) {
+				gl.glVertex2d(Math.cos(i) * rad, Math.sin(i) * rad);
+			}
+			gl.glEnd();
+			
+			gl.glPopMatrix();
 		}
 	}
 	

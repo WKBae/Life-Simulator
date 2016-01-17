@@ -698,7 +698,7 @@ public class SettingFrame extends JDialog implements ActionListener, ChangeListe
 		simulatorFrame.revalidate();
 		
 		setting.setSimulationSpeed(2.0f / speedSlider.getValue());
-		setting.setFrameRate(1.0f / fpsSlider.getValue());
+		setting.setFrameRate(fpsSlider.getValue());
 		
 		cellCount.setValue(setting.getLifeformAmount());
 	}
@@ -822,7 +822,7 @@ public class SettingFrame extends JDialog implements ActionListener, ChangeListe
 				}
 				setting.setSimulationSpeed(2.0f / slider.getValue()); // 1 / (value / 2) = 2 / value
 			} else if(slider == fpsSlider) {
-				setting.setFrameRate(1.0f / slider.getValue());
+				setting.setFrameRate(slider.getValue());
 			} else if(slider == mutationSlider) {
 				setting.setMutationRatio(slider.getValue() / 100.0f);
 				mutationLabel.setText(slider.getValue() + "%");

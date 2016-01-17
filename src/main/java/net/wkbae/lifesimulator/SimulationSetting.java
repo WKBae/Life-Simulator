@@ -22,7 +22,7 @@ public class SimulationSetting implements Serializable {
 	
 	private transient float displayRatio = displaySize / worldSize;
 	
-	private transient volatile float frameRate = 1.0f / 30.0f;
+	private transient volatile int frameRate = 30;
 	
 	private int lifeformAmount = 50;
 	
@@ -64,7 +64,7 @@ public class SimulationSetting implements Serializable {
 		this.displayRatio = 1.0f * displaySize / worldSize;
 	}
 
-	public void setFrameRate(float frameRate) {
+	public void setFrameRate(int frameRate) {
 		this.frameRate = frameRate;
 	}
 
@@ -123,7 +123,7 @@ public class SimulationSetting implements Serializable {
 		return displayRatio;
 	}
 
-	public float getFrameRate() {
+	public int getFrameRate() {
 		return frameRate;
 	}
 	

@@ -1,12 +1,10 @@
 package net.wkbae.lifesimulator.window;
 
 import java.awt.BorderLayout;
-import java.awt.Canvas;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Frame;
 import java.awt.Graphics;
-import java.awt.Graphics2D;
 import java.awt.Panel;
 import java.awt.Point;
 import java.awt.ScrollPane;
@@ -16,29 +14,36 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowListener;
-import java.awt.image.BufferStrategy;
-import java.awt.image.VolatileImage;
 
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
 
-import net.wkbae.lifesimulator.Lifeform;
-import net.wkbae.lifesimulator.Simulation;
-import net.wkbae.lifesimulator.SimulationPainter;
-
 import org.jbox2d.callbacks.QueryCallback;
 import org.jbox2d.collision.AABB;
-import org.jbox2d.common.MathUtils;
 import org.jbox2d.common.Vec2;
 import org.jbox2d.dynamics.Fixture;
-import org.slf4j.LoggerFactory;
+
+import com.jogamp.opengl.GL;
+import com.jogamp.opengl.GL2;
+import com.jogamp.opengl.GLAutoDrawable;
+import com.jogamp.opengl.GLCapabilities;
+import com.jogamp.opengl.GLEventListener;
+import com.jogamp.opengl.GLProfile;
+import com.jogamp.opengl.awt.GLCanvas;
+import com.jogamp.opengl.util.FPSAnimator;
+
+import net.wkbae.lifesimulator.Lifeform;
+import net.wkbae.lifesimulator.Simulation;
 
 public class SimulatorFrame extends Frame implements WindowListener {
 	private static final long serialVersionUID = -682403930435583320L;
 	
 	//private DrawPanel panel;
-	public final Canvas drawCanvas;
+	public final GLCanvas drawCanvas;
+	private FPSAnimator animator;
+	private int previousFps;
+	
 	private ScrollPane scroll;
 	private SettingFrame setting;
 	
@@ -80,21 +85,69 @@ public class SimulatorFrame extends Frame implements WindowListener {
 			}
 		};
 		alignPanel.setLayout(new BorderLayout());
-		//GLG2DCanvas g = new GLG2DCanvas();
-		drawCanvas = new Canvas() {
-			private static final long serialVersionUID = 1L;
-
-			public void update(Graphics g) {
-				paint(g);
+		
+		GLProfile profile = GLProfile.getDefault();
+		GLCapabilities cap = new GLCapabilities(profile);
+		cap.setSampleBuffers(true);
+		cap.setNumSamples(8);
+		drawCanvas = new GLCanvas(cap);
+		
+		previousFps = SettingFrame.setting.getFrameRate();
+		animator = new FPSAnimator(drawCanvas, previousFps);
+		
+		drawCanvas.addGLEventListener(new GLEventListener() {
+			private int size;
+			@Override
+			public void reshape(GLAutoDrawable drawable, int x, int y, int width, int height) {
+				this.size = width;
+				
+				GL2 gl = drawable.getGL().getGL2();
+				
+				gl.glEnable(GL2.GL_MULTISAMPLE);
+				
+				gl.glMatrixMode(GL2.GL_PROJECTION);
+				gl.glLoadIdentity();
+				gl.glOrtho(0, width, height, 0, -1, 1);
+				
+				gl.glMatrixMode(GL2.GL_MODELVIEW);
+				gl.glLoadIdentity();
+				gl.glViewport(0, 0, width, height);
 			}
 			
-			public void paint(Graphics g) {
+			@Override
+			public void init(GLAutoDrawable drawable) {
+				animator.start();
+			}
+			
+			@Override
+			public void dispose(GLAutoDrawable drawable) {
+				animator.stop();
+			}
+			
+			@Override
+			public void display(GLAutoDrawable drawable) {
 				Simulation sim = setting.getCurrentSimulation();
 				if(sim != null) {
-					sim.getPainter().paint((Graphics2D) g, this.getWidth());
+					GL2 gl = drawable.getGL().getGL2();
+					gl.glClear(GL.GL_COLOR_BUFFER_BIT);
+					gl.glLoadIdentity();
+					sim.getPainter().paint(gl, 0, 0, size, size);
+				} else {
+					GL2 gl = drawable.getGL().getGL2();
+					gl.glClear(GL.GL_COLOR_BUFFER_BIT);
+					gl.glLoadIdentity();
+					gl.glColor3f(1, 1, 1);
+					gl.glRectf(0, 0, size, size);
+				}
+				
+				if(SettingFrame.setting.getFrameRate() != previousFps) {
+					animator.stop();
+					previousFps = SettingFrame.setting.getFrameRate();
+					animator.setFPS(previousFps);
+					animator.start();
 				}
 			}
-		};
+		});
 		
 		drawCanvas.addComponentListener(new ComponentAdapter() {
 			@Override
@@ -105,24 +158,6 @@ public class SimulatorFrame extends Frame implements WindowListener {
 			}
 		});
 		
-		
-		/*drawCanvas = new Canvas() {
-			private static final long serialVersionUID = -2068588611933791347L;
-			
-			@Override
-			public void update(Graphics g) {
-				paint(g);
-			}
-			@Override
-			public void paint(Graphics g) {
-				//super.paint(g);
-				Simulation sim = Simulation.getCurrentSimulation();
-				if(sim != null) {
-					sim.getPainter().paint((Graphics2D)getBufferStrategy().getDrawGraphics(), this.getWidth());
-				}
-			}
-		};*/
-		//getContentPane().add(canvas, BorderLayout.NORTH);
 		drawCanvas.addMouseListener(new MouseAdapter() {
 			@Override
 			public void mouseClicked(MouseEvent e) {
@@ -178,34 +213,11 @@ public class SimulatorFrame extends Frame implements WindowListener {
 		Point loc = this.getLocationOnScreen();
 		loc.x += this.getWidth();
 		setting.setLocation(loc);
-		
-		drawCanvas.createBufferStrategy(2);
-		this.paintThread = new PaintThread(drawCanvas);
+		setting.pack();
 		
 		setting.setVisible(true);
-		
-		paintThread.start();
 	}
 	
-	private PaintThread paintThread;
-	
-	/*@Override
-    public void paint(Graphics g) {
-        Dimension d = getSize();
-        Dimension m = getMaximumSize();
-        boolean resize = d.width > m.width || d.height > m.height;
-        d.width = Math.min(m.width, d.width);
-        d.height = Math.min(m.height, d.height);
-        if (resize) {
-            Point p = getLocation();
-            setVisible(false);
-            setSize(d);
-            setLocation(p);
-            setVisible(true);
-        }
-        super.paint(g);
-    }*/
-
 	@Override
 	public void windowActivated(WindowEvent e) {}
 
@@ -214,19 +226,12 @@ public class SimulatorFrame extends Frame implements WindowListener {
 
 	@Override
 	public void windowClosing(WindowEvent e) {
-		/*if(this.paintThread != null) {
-			paintThread.interrupt();
-		}*/
-		
-		//long time1 = System.currentTimeMillis();
 		setting.setVisible(false);
-		//long time2 = System.currentTimeMillis();
+		
 		setting.dispose();
-		//long time3 = System.currentTimeMillis();
 		
 		this.dispose();
-		//long time4 = System.currentTimeMillis();
-		//System.out.println((time2 - time1) + ", " + (time3 - time2) + ", " + (time4 - time3));
+		
 		System.exit(0);
 	}
 
@@ -242,88 +247,4 @@ public class SimulatorFrame extends Frame implements WindowListener {
 	@Override
 	public void windowOpened(WindowEvent e) {}
 	
-	private class PaintThread extends Thread {
-		//private Canvas canvas;
-		private PainterRunnable runnable;
-		private long lastTime = -1;
-		
-		private PaintThread(Canvas canvas) {
-			//this.canvas = drawCanvas;
-			this.runnable = new PainterRunnable(canvas);
-			this.setDaemon(true);
-		}
-		
-		@Override
-		public void run() {
-			try {
-				while(!Thread.interrupted()) {
-					if(SettingFrame.setting.getFrameRate() == Float.POSITIVE_INFINITY) {
-						sleep(100);
-					} else {
-						Simulation sim = setting.getCurrentSimulation();
-						if(sim == null) {
-							sleep(100);
-							continue;
-						}
-						
-						long loopStart = System.nanoTime();
-						
-						try {
-							if(sim != null) {
-								SimulationPainter painter = sim.getPainter();
-								if(painter.getTime() != lastTime) {
-									SwingUtilities.invokeAndWait(runnable.setPainter(painter));
-									lastTime = painter.getTime();
-								}
-							}
-						} catch(Exception e) {
-							LoggerFactory.getLogger(SimulatorFrame.class).warn("Exception occured while painting screen: ", e);
-						}
-						
-						long loopEnd = System.nanoTime();
-						long sleepTime = MathUtils.round((float) (sim.getSetting().getFrameRate() * 1000 - (loopEnd - loopStart)*0.00_000_1));
-						if(sleepTime > 0) {
-							Thread.sleep(sleepTime);
-						}
-					}
-					if(Thread.interrupted()) break;
-				}
-			} catch (InterruptedException e) {}
-		}
-	}
-	
-	private static class PainterRunnable implements Runnable {
-		
-		private Canvas canvas;
-		
-		public PainterRunnable(Canvas canvas) {
-			this.canvas = canvas;
-		}
-		
-		private SimulationPainter painter;
-		
-		public PainterRunnable setPainter(SimulationPainter painter) {
-			this.painter = painter;
-			return this;
-		}
-		
-		@Override
-		public void run() {
-			BufferStrategy bs = canvas.getBufferStrategy();
-			
-			VolatileImage vi = canvas.createVolatileImage(canvas.getWidth(), canvas.getHeight());
-			Graphics vig = vi.getGraphics();
-			painter.paint((Graphics2D) vig, canvas.getWidth());
-			vig.dispose();
-			if(!vi.contentsLost()) {
-				Graphics bsg = bs.getDrawGraphics();
-				bsg.drawImage(vi, 0, 0, null);
-				bsg.dispose();
-				if(!bs.contentsLost()) {
-					bs.show();
-				}
-			}
-			
-		}
-	}
 }
