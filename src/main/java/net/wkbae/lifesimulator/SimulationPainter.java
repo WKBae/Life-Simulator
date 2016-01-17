@@ -9,7 +9,7 @@ import java.util.List;
 import org.jbox2d.common.MathUtils;
 import org.jbox2d.common.Vec2;
 
-public class SimulationPainter {
+public class SimulationPainter { //implements Comparable<SimulationPainter> { // no, SimulationPainter.simulation can be different.
 	private final Simulation simulation;
 	
 	private final long time;
@@ -53,7 +53,13 @@ public class SimulationPainter {
 			int x = MathUtils.round(locx - rad) + startX;
 			int y = MathUtils.round(locy - rad) + startY;
 			int s = MathUtils.round(rad*2);
-			g.setColor(info.color);
+			
+			int re = (info.color >> 8) & 0xF;
+			int gr = (info.color >> 4) & 0xF;
+			int bl = info.color & 0xF;
+			Color color = new Color(re << 4 | re, gr << 4 | gr, bl << 4 | bl);
+			g.setColor(color);
+			
 			g.fillOval(x, y, s, s);
 			g.setColor(Color.BLACK);
 			g.drawOval(x, y, s, s);
@@ -73,23 +79,19 @@ public class SimulationPainter {
 	}
 	
 	public static class LifePaintInfo {
-		public final Color color;
+		public final int color;
 		public final float size;
 		public final float sight;
 		public final float x, y;
 		
 		LifePaintInfo(Lifeform life) {
 			Vec2 loc = life.getBody().getPosition();
-			x = loc.x;
-			y = loc.y;
+			this.x = loc.x;
+			this.y = loc.y;
 			
-			size = life.getSize();
-			sight = size + life.getSight();
-			int color = life.getColor();
-			int re = (color >> 8) & 0xF;
-			int gr = (color >> 4) & 0xF;
-			int bl = color & 0xF;
-			this.color = new Color(re << 4 | re, gr << 4 | gr, bl << 4 | bl);
+			this.size = life.getSize();
+			this.sight = size + life.getSight();
+			this.color = life.getColor();
 		}
 	}
 }

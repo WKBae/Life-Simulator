@@ -207,7 +207,8 @@ public class LifeformStatisticsDialog extends JDialog implements ActionListener,
 		
 		Set<Integer> colorSet = new TreeSet<>(countMap.keySet());
 		for(LifePaintInfo info : painter.getLifeInfos()) {
-			int color = ((info.color.getRed()&0xF) << 8) | ((info.color.getGreen()&0xF) << 4) | (info.color.getBlue()&0xF);
+			//int color = ((info.color.getRed()&0xF) << 8) | ((info.color.getGreen()&0xF) << 4) | (info.color.getBlue()&0xF);
+			int color = info.color;
 			
 			for(Integer color2 : colorSet) {
 				if(Gene.isCloseTo(color, color2)) {
