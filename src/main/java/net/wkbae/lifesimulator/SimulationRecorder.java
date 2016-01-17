@@ -11,11 +11,17 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
 import java.text.SimpleDateFormat;
-import java.util.Comparator;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -39,7 +45,9 @@ public class SimulationRecorder extends Thread {
 	
 	//private final static long FRAME_RATE = Global.DEFAULT_TIME_UNIT.convert(Math.round(1000000.0 / FRAMES_PER_SECOND), TimeUnit.MICROSECONDS);
 
-	private final static int QUEUE_LIMIT = 600;
+	private final static int QUEUE_LIMIT = 1200;
+	private final static int RENDERER_COUNT = 5;
+	
 	
 	private static Set<Simulation> recordingSimulations = new HashSet<>();
 	public static boolean isRecording(Simulation sim) {
@@ -85,7 +93,24 @@ public class SimulationRecorder extends Thread {
 	private boolean started = false;
 	
 	private IMediaWriter writer;
-	//private SequenceEncoder encoder;
+	
+	private BlockingQueue<GLAutoDrawable> drawablePool;
+	
+	private ExecutorService executor = new ThreadPoolExecutor(0, RENDERER_COUNT, 1, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(QUEUE_LIMIT) {
+		private static final long serialVersionUID = -211514487914423576L;
+
+		@Override
+		public boolean offer(Runnable e) {
+			try {
+				put(e);
+				return true;
+			} catch(InterruptedException ex) {
+				Thread.currentThread().interrupt();
+				return false;
+			}
+		};
+	});
+	
 	private RecordListener listener = new RecordListener();
 	
 	@Override
@@ -130,20 +155,44 @@ public class SimulationRecorder extends Thread {
 	@Override
 	public void run() {
 		try {
-			GLProfile glp = GLProfile.getDefault();
-			GLCapabilities caps = new GLCapabilities(glp);
-			caps.setHardwareAccelerated(true);
-			caps.setDoubleBuffered(false);
-			caps.setOnscreen(false);
-			caps.setSampleBuffers(true);
-			caps.setNumSamples(8);
+			initDrawablePool();
 			
-			GLDrawableFactory factory = GLDrawableFactory.getFactory(glp);
+			while(!stop) {
+				ConcurrentSkipListMap.Entry<Long, Future<Frame>> entry;
+				while((entry = renderedFrames.pollFirstEntry()) == null) {
+					Thread.sleep(50);
+				}
+				
+				try {
+					Frame frame = entry.getValue().get();
+					
+					long frameTime = Global.DEFAULT_TIME_UNIT.convert(frame.frameTime, TimeUnit.MILLISECONDS);
+					writer.encodeVideo(0, frame.image, frameTime, Global.DEFAULT_TIME_UNIT);
+				} catch (ExecutionException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				if(Thread.interrupted()) break;
+			}
+		} catch (InterruptedException e) {}
+	}
+	
+	
+	private void initDrawablePool() {
+		GLProfile glp = GLProfile.getDefault();
+		GLCapabilities caps = new GLCapabilities(glp);
+		caps.setHardwareAccelerated(true);
+		caps.setDoubleBuffered(false);
+		caps.setOnscreen(false);
+		caps.setSampleBuffers(true);
+		caps.setNumSamples(8);
+		
+		GLDrawableFactory factory = GLDrawableFactory.getFactory(glp);
+		
+		drawablePool = new LinkedBlockingQueue<>();
+		for(int i = 0; i < RENDERER_COUNT; i++) {
 			GLAutoDrawable drawable = factory.createOffscreenAutoDrawable(factory.getDefaultDevice(), caps, new DefaultGLCapabilitiesChooser(), size, size);
-			AWTGLReadBufferUtil bufferReader = new AWTGLReadBufferUtil(drawable.getGLProfile(), true);
-			
 			drawable.display();
-			System.out.println(drawable + " CTX: " + drawable.getContext());
 			drawable.getContext().makeCurrent();
 			GL2 gl = drawable.getGL().getGL2();
 			gl.glEnable(GL2.GL_MULTISAMPLE);
@@ -157,40 +206,61 @@ public class SimulationRecorder extends Thread {
 			gl.glViewport(0, 0, size, size);
 			drawable.getContext().release();
 			
-			while(!stop) {
-				SimulationPainter painter = paintQueue.take();
-				
-				BufferedImage frame = new BufferedImage(size, height, BufferedImage.TYPE_3BYTE_BGR);
-				
-				drawable.getContext().makeCurrent();
-				gl = drawable.getGL().getGL2();
-				gl.glColor3f(1, 1, 1);
-				gl.glRectf(0, 0, size, size);
-				
-				gl.glClear(GL.GL_COLOR_BUFFER_BIT);
-				gl.glLoadIdentity();
-				painter.paint(gl, 0, 0, size, size);
-				
-				Graphics2D g = frame.createGraphics();
-				g.drawImage(bufferReader.readPixelsToBufferedImage(gl, false), 0, 0, null);
-				drawable.getContext().release();
-				
-				g.setColor(Color.BLACK);
-				g.fillRect(0, size, size, height - size);
-				
-				g.setColor(Color.WHITE);
-				String elapsed = String.format("%.1fs", painter.getTime() / 1000.0f + 0.05f);//(MathUtils.round((float) (painter.getTime() / 100.0)) / 10.0) + "s";
-				Rectangle2D bound = g.getFontMetrics().getStringBounds(elapsed, g);
-				g.drawString(elapsed, 5, size + 5 + (int)(bound.getHeight() / 2.0f + 0.5f));//MathUtils.round((float) (bound.getHeight() / 2)));
-				
-				g.dispose();
-				
-				long frameTime = Global.DEFAULT_TIME_UNIT.convert(painter.getTime(), TimeUnit.MILLISECONDS);
-				writer.encodeVideo(0, frame, frameTime, Global.DEFAULT_TIME_UNIT);
-				
-				if(Thread.interrupted()) break;
-			}
-		} catch (InterruptedException e) {}
+			drawablePool.add(drawable);
+		}
+	}
+	
+	private static class Frame {
+		public final long frameTime;
+		public final BufferedImage image;
+		Frame(long frameTime, BufferedImage image) {
+			this.frameTime = frameTime;
+			this.image = image;
+		}
+	}
+	private class FrameRenderer implements Callable<Frame> {
+		
+		private SimulationPainter painter;
+		
+		public FrameRenderer(SimulationPainter painter) {
+			this.painter = painter;
+		}
+		
+		@Override
+		public Frame call() throws Exception {
+			GLAutoDrawable drawable = drawablePool.take();
+			
+			AWTGLReadBufferUtil bufferReader = new AWTGLReadBufferUtil(drawable.getGLProfile(), true);
+			
+			BufferedImage frame = new BufferedImage(size, height, BufferedImage.TYPE_3BYTE_BGR);
+			
+			drawable.getContext().makeCurrent();
+			GL2 gl = drawable.getGL().getGL2();
+			gl.glColor3f(1, 1, 1);
+			gl.glRectf(0, 0, size, size);
+			
+			gl.glClear(GL.GL_COLOR_BUFFER_BIT);
+			gl.glLoadIdentity();
+			painter.paint(gl, 0, 0, size, size);
+			
+			Graphics2D g = frame.createGraphics();
+			g.drawImage(bufferReader.readPixelsToBufferedImage(gl, true), 0, 0, null);
+			drawable.getContext().release();
+			
+			g.setColor(Color.BLACK);
+			g.fillRect(0, size, size, height - size);
+			
+			g.setColor(Color.WHITE);
+			String elapsed = String.format("%.1fs", painter.getTime() / 1000.0f + 0.05f);//(MathUtils.round((float) (painter.getTime() / 100.0)) / 10.0) + "s";
+			Rectangle2D bound = g.getFontMetrics().getStringBounds(elapsed, g);
+			g.drawString(elapsed, 5, size + 5 + (int)(bound.getHeight() / 2.0f + 0.5f));//MathUtils.round((float) (bound.getHeight() / 2)));
+			
+			g.dispose();
+			
+			drawablePool.put(drawable);
+			
+			return new Frame(painter.getTime(), frame);
+		}
 	}
 	
 	public synchronized void finish() {
@@ -199,12 +269,18 @@ public class SimulationRecorder extends Thread {
 			sim.removeSimulationListener(listener);
 			recordingSimulations.remove(sim);
 			
+			executor.shutdown();
 			this.interrupt();
 			try {
+				executor.awaitTermination(10, TimeUnit.SECONDS);
 				this.join();
+				executor.shutdownNow();
 			} catch (InterruptedException e1) {
 				Thread.currentThread().interrupt();
 			}
+			
+			drawablePool = null;
+			renderedFrames.clear();
 			
 			try {
 				writer.flush();
@@ -218,27 +294,16 @@ public class SimulationRecorder extends Thread {
 		}
 	}
 	
-	private PriorityBlockingQueue<SimulationPainter> paintQueue = new PriorityBlockingQueue<>(60, new PainterComparator());
-	
 	//private long updateCount = 0;
 	//private long lastTime = -1;
+	
+	private ConcurrentSkipListMap<Long, Future<Frame>> renderedFrames = new ConcurrentSkipListMap<>();
 	
 	private class RecordListener implements SimulationListener {
 		@Override
 		public void simulationPainterUpdated(Simulation simulation, SimulationPainter painter) {
 			if(started && painter.getSimulation() == sim) {
-				paintQueue.add(painter);
-				
-				while(paintQueue.size() > QUEUE_LIMIT) {
-					if(Thread.currentThread().isInterrupted()) return;
-					
-					try {
-						Thread.sleep(50);
-					} catch (InterruptedException e) {
-						Thread.currentThread().interrupt();
-						return;
-					}
-				}
+				renderedFrames.put(painter.getTime(), executor.submit(new FrameRenderer(painter)));
 			}
 		}
 		
@@ -269,11 +334,4 @@ public class SimulationRecorder extends Thread {
 		return fm;
 	}
 	
-	
-	private class PainterComparator implements Comparator<SimulationPainter> {
-		@Override
-		public int compare(SimulationPainter o1, SimulationPainter o2) {
-			return (int) (o1.getTime() - o2.getTime());
-		}
-	}
 }
