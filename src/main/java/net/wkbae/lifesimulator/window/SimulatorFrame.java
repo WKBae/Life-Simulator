@@ -88,6 +88,8 @@ public class SimulatorFrame extends Frame implements WindowListener {
 		
 		GLProfile profile = GLProfile.getDefault();
 		GLCapabilities cap = new GLCapabilities(profile);
+		cap.setHardwareAccelerated(true);
+		cap.setDoubleBuffered(true);
 		cap.setSampleBuffers(true);
 		cap.setNumSamples(8);
 		drawCanvas = new GLCanvas(cap);
