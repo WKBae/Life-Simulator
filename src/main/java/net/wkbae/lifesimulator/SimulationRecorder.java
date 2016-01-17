@@ -17,10 +17,9 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.TreeSet;
+import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-import org.jbox2d.common.MathUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,6 +33,8 @@ public class SimulationRecorder extends Thread {
 	
 	//private final static long FRAME_RATE = Global.DEFAULT_TIME_UNIT.convert(Math.round(1000000.0 / FRAMES_PER_SECOND), TimeUnit.MICROSECONDS);
 
+	private final static int QUEUE_LIMIT = 600;
+	
 	private final static GraphicsConfiguration graphicConfig = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration();
 	
 	private static Set<Simulation> recordingSimulations = new HashSet<>();
@@ -126,58 +127,34 @@ public class SimulationRecorder extends Thread {
 	public void run() {
 		try {
 			while(!stop) {
-				if(paintQueue.isEmpty()) {
-					synchronized (paintQueue) {
-						paintQueue.wait();
-					}
-				}
-				//Iterator<SimulationPainter> iter = paintQueue.iterator();
-				SimulationPainter painter;
-				//synchronized(this) {
-					painter = paintQueue.pollFirst();
-				//}
-				//int i = 0;
-				while(painter != null) {
-					// = iter.next();
-					BufferedImage frame = new BufferedImage(size, height, BufferedImage.TYPE_3BYTE_BGR);
-					
-					BufferedImage compat = graphicConfig.createCompatibleImage(size, size);
-					Graphics2D g = compat.createGraphics();	
-					
-					painter.paint(g, size);
-					
-					g.dispose();
-					
-					g = frame.createGraphics();
-					g.drawImage(compat, 0, 0, null);
-					
-					g.setColor(Color.BLACK);
-					g.fillRect(0, size, size, height - size);
-					
-					g.setColor(Color.WHITE);
-					String elapsed = (MathUtils.round((float) (painter.getTime() / 100.0)) / 10.0) + "s";
-					Rectangle2D bound = g.getFontMetrics().getStringBounds(elapsed, g);
-					g.drawString(elapsed, 5, size + 5 + MathUtils.round((float) (bound.getHeight() / 2)));
-					
-					g.dispose();
-					
-					long frameTime = Global.DEFAULT_TIME_UNIT.convert(painter.getTime(), TimeUnit.MILLISECONDS);
-					writer.encodeVideo(0, frame, frameTime, Global.DEFAULT_TIME_UNIT);
-					//encoder.encodeImage(frame);
-					
-					//iter.remove();
-					//synchronized (this) {
-						painter = paintQueue.pollFirst();
-					//}
-					
-				//	i++;
-				}
-				//System.out.println("Recorded " + i + " Frames");
-				synchronized(paintQueue) {
-					paintQueue.notifyAll();
-				}
+				SimulationPainter painter = paintQueue.take();
+				
+				BufferedImage frame = new BufferedImage(size, height, BufferedImage.TYPE_3BYTE_BGR);
+				
+				BufferedImage compat = graphicConfig.createCompatibleImage(size, size);
+				Graphics2D g = compat.createGraphics();	
+				
+				painter.paint(g, size);
+				
+				g.dispose();
+				
+				g = frame.createGraphics();
+				g.drawImage(compat, 0, 0, null);
+				
+				g.setColor(Color.BLACK);
+				g.fillRect(0, size, size, height - size);
+				
+				g.setColor(Color.WHITE);
+				String elapsed = String.format("%.1fs", painter.getTime() / 1000.0f + 0.05f);//(MathUtils.round((float) (painter.getTime() / 100.0)) / 10.0) + "s";
+				Rectangle2D bound = g.getFontMetrics().getStringBounds(elapsed, g);
+				g.drawString(elapsed, 5, size + 5 + (int)(bound.getHeight() / 2.0f + 0.5f));//MathUtils.round((float) (bound.getHeight() / 2)));
+				
+				g.dispose();
+				
+				long frameTime = Global.DEFAULT_TIME_UNIT.convert(painter.getTime(), TimeUnit.MILLISECONDS);
+				writer.encodeVideo(0, frame, frameTime, Global.DEFAULT_TIME_UNIT);
+				
 				if(Thread.interrupted()) break;
-			//	if(paintQueue.isEmpty()) Thread.yield();
 			}
 		} catch (InterruptedException e) {}
 	}
@@ -187,10 +164,6 @@ public class SimulationRecorder extends Thread {
 			stop = true;
 			sim.removeSimulationListener(listener);
 			recordingSimulations.remove(sim);
-			
-			synchronized(paintQueue) {
-				paintQueue.notifyAll();
-			}
 			
 			this.interrupt();
 			try {
@@ -211,9 +184,7 @@ public class SimulationRecorder extends Thread {
 		}
 	}
 	
-	//private Queue<SimulationPainter> paintQueue = new LinkedList<>();
-	
-	private TreeSet<SimulationPainter> paintQueue = new TreeSet<>(new PainterComparator());
+	private PriorityBlockingQueue<SimulationPainter> paintQueue = new PriorityBlockingQueue<>(60, new PainterComparator());
 	
 	//private long updateCount = 0;
 	//private long lastTime = -1;
@@ -223,21 +194,17 @@ public class SimulationRecorder extends Thread {
 		public void simulationPainterUpdated(Simulation simulation, SimulationPainter painter) {
 			if(started && painter.getSimulation() == sim) {
 				paintQueue.add(painter);
-				//if(paintQueue.size() >= 60) {
-					synchronized(paintQueue) {
-						paintQueue.notifyAll();
+				
+				while(paintQueue.size() > QUEUE_LIMIT) {
+					if(Thread.currentThread().isInterrupted()) return;
+					
+					try {
+						Thread.sleep(50);
+					} catch (InterruptedException e) {
+						Thread.currentThread().interrupt();
+						return;
 					}
-					synchronized(paintQueue) {
-						if(paintQueue.size() > 600) {
-							try {
-								paintQueue.wait();
-							} catch (InterruptedException e) {
-								Thread.currentThread().interrupt();
-								return;
-							}
-						}
-					}
-				//}
+				}
 			}
 		}
 		
