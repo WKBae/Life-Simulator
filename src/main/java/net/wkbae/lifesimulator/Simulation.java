@@ -144,14 +144,11 @@ public class Simulation implements Runnable, ContactListener {
 			this.notifyAll();
 		}
 		
-		Object[] lists;
-		synchronized (listeners) {
-			lists = listeners.toArray();
+		synchronized(listeners) {
+			for(SimulationListener listener : listeners) {
+				listener.simulationStarted(this);
+			}
 		}
-		for(Object listener : lists) {
-			((SimulationListener)listener).simulationStarted(this);
-		}
-		lists = null;
 		
 		try {
 			long loopStart, loopEnd;
@@ -223,11 +220,10 @@ public class Simulation implements Runnable, ContactListener {
 		
 		running = false;
 		
-		synchronized (listeners) {
-			lists = listeners.toArray();
-		}
-		for(Object listener : lists) {
-			((SimulationListener)listener).simulationStopped(this);
+		synchronized(listeners) {
+			for(SimulationListener listener : listeners) {
+				listener.simulationStopped(this);
+			}
 		}
 	}
 	
@@ -498,12 +494,10 @@ public class Simulation implements Runnable, ContactListener {
 		}
 		
 		if(hasCreation) {
-			Object[] lists;
 			synchronized (listeners) {
-				lists = listeners.toArray();
-			}
-			for(Object listener : lists) {
-				((SimulationListener)listener).simulationSettingChanged(this, setting);
+				for(SimulationListener listener : listeners) {
+					listener.simulationSettingChanged(this, setting);
+				}
 			}
 		}
 	}
@@ -573,12 +567,10 @@ public class Simulation implements Runnable, ContactListener {
 			
 			currentPainter = new SimulationPainter(this, elapsedTime, paintInfo);
 			
-			Object[] lists;
-			synchronized (listeners) {
-				lists = listeners.toArray();
-			}
-			for(Object listener : lists) {
-				((SimulationListener)listener).simulationPainterUpdated(this, currentPainter);
+			synchronized(listeners) {
+				for(SimulationListener listener : listeners) {
+					listener.simulationPainterUpdated(this, currentPainter);
+				}
 			}
 		} catch (Exception e) {
 			LoggerFactory.getLogger(Simulation.class).warn("Exception occured while updating painter.", e);
