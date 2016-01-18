@@ -3,12 +3,16 @@ package net.wkbae.lifesimulator;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
 import java.util.Collections;
 import java.util.List;
 
 import org.jbox2d.common.MathUtils;
 import org.jbox2d.common.Vec2;
 
+import com.jogamp.common.nio.Buffers;
 import com.jogamp.opengl.GL2;
 
 public class SimulationPainter { //implements Comparable<SimulationPainter> { // no, SimulationPainter.simulation can be different.
@@ -68,7 +72,24 @@ public class SimulationPainter { //implements Comparable<SimulationPainter> { //
 		}
 	}
 	
-	private final static int GL_CIRCLE_DIVISION = 12;
+	private final static int GL_CIRCLE_DIVISION = 18;
+	
+	private final static FloatBuffer CIRCLE_VERTICES;
+	static {
+		float[] circleVertices = new float[(GL_CIRCLE_DIVISION+1) * 2];
+		
+		double delta = 2 * Math.PI / GL_CIRCLE_DIVISION;
+		for(int i = 0; i <= GL_CIRCLE_DIVISION * 2; i += 2) {
+			circleVertices[i] = (float) Math.cos(delta * i/2);
+			circleVertices[i+1] = (float) Math.sin(delta * i/2);
+			//circleVertices[i+2] = 0;
+		}
+		
+		CIRCLE_VERTICES = ByteBuffer.allocateDirect(Buffers.SIZEOF_FLOAT * (2 + circleVertices.length)).order(ByteOrder.nativeOrder())
+				.asFloatBuffer();
+		CIRCLE_VERTICES.put(new float[]{ 0, 0 }).put(circleVertices).rewind();
+	}
+	
 	public void paint(GL2 gl, float startX, float startY, float endX, float endY) {
 		float width = Math.abs(endX - startX), height = Math.abs(endY - startY);
 		float size = Math.min(width, height);
@@ -81,6 +102,9 @@ public class SimulationPainter { //implements Comparable<SimulationPainter> { //
 		
 		gl.glColor3f(1, 1, 1);
 		gl.glRectf(squareStartX, squareStartY, squareStartX + (size * directionX), squareStartY + (size * directionY));
+
+		gl.glEnableClientState(GL2.GL_VERTEX_ARRAY);
+		gl.glVertexPointer(2, GL2.GL_FLOAT, 0, CIRCLE_VERTICES);
 		
 		for(LifePaintInfo info : infos) {
 			float locx = info.x * multiplyer;
@@ -101,25 +125,17 @@ public class SimulationPainter { //implements Comparable<SimulationPainter> { //
 			gl.glPushMatrix();
 			
 			gl.glTranslatef(x, y, 0);
-			gl.glColor3ub(red, green, blue);
+			gl.glScalef(rad, rad, 0);
 			
-			gl.glBegin(GL2.GL_POLYGON);
-			for(double i = 0; i <= 2 * Math.PI; i += Math.PI / GL_CIRCLE_DIVISION) {
-				gl.glVertex2d(Math.cos(i) * rad, Math.sin(i) * rad);
-			}
-			gl.glEnd();
+			gl.glColor3ub(red, green, blue);
+			gl.glDrawArrays(GL2.GL_TRIANGLE_FAN, 0, GL_CIRCLE_DIVISION + 2); // GL_CIRCLE_DIVISION + (0,0) + (cos(2PI), sin(2PI))
 			
 			gl.glColor3f(0, 0, 0);
-			
-			gl.glLineWidth(0.8f);
-			gl.glBegin(GL2.GL_LINE_LOOP);
-			for(double i = 0; i <= 2 * Math.PI; i += Math.PI / GL_CIRCLE_DIVISION) {
-				gl.glVertex2d(Math.cos(i) * rad, Math.sin(i) * rad);
-			}
-			gl.glEnd();
+			gl.glDrawArrays(GL2.GL_LINE_LOOP, 1, GL_CIRCLE_DIVISION); // GL_CIRCLE_DIVISION - (0,0) - (cos(2PI), sin(2PI))
 			
 			gl.glPopMatrix();
 		}
+		gl.glDisableClientState(GL2.GL_VERTEX_ARRAY);
 	}
 	
 	public List<LifePaintInfo> getLifeInfos() {
