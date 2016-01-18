@@ -693,8 +693,8 @@ public class Simulation implements Runnable, ContactListener {
 				int forceB = lifeB.gene.getFactor(Factor.POWER);
 				float impul = impulse.normalImpulses[0] / 10;
 				
-				float powerA = impul * forceA / 3.0f * a.getBody().getLinearVelocity().length();
-				float powerB = impul * forceB / 3.0f * b.getBody().getLinearVelocity().length();
+				float powerA = impul * forceA / 3.0f * a.getBody().getLinearVelocity().lengthSquared();
+				float powerB = impul * forceB / 3.0f * b.getBody().getLinearVelocity().lengthSquared();
 				
 				
 				if(powerA > powerB) {
