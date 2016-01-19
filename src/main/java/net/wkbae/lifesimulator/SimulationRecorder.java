@@ -160,7 +160,7 @@ public class SimulationRecorder extends Thread {
 			while(!stop) {
 				ConcurrentSkipListMap.Entry<Long, Future<Frame>> entry;
 				while((entry = renderedFrames.pollFirstEntry()) == null) {
-					Thread.sleep(50);
+					Thread.sleep(30);
 				}
 				
 				try {
